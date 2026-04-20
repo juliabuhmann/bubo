@@ -21,24 +21,24 @@ COMPBIO_DIR=${COMPBIO_DIR:-/cluster/project/beltrao/jbuhmann/agentic_ai/compbiob
 RUNNER_DIR=${RUNNER_DIR:-/cluster/home/buhmanju/src/compbiobench-runner}
 RESULTS_DIR=${RESULTS_DIR:-/cluster/project/beltrao/jbuhmann/agentic_ai/compbiobench/results}
 
-HOME_DIR=$REPO_DIR/home-codex
-JOB_TMPDIR=${TMPDIR:-/tmp}/compbio.$$
+SOURCE_HOME_DIR=$REPO_DIR/home-codex
+JOB_TMPDIR=${TMPDIR:-/tmp}/compbio.${SLURM_JOB_ID:-$$}
 
-# TODO: add trap-based cleanup once we're confident jobs aren't reusing /tmp across retries
-# trap 'rm -rf "$JOB_TMPDIR"' EXIT
+mkdir -p "$SOURCE_HOME_DIR" "$RESULTS_DIR" "$JOB_TMPDIR"
 
-mkdir -p "$HOME_DIR" "$RESULTS_DIR" "$JOB_TMPDIR"
+# Give each job its own copy of home-codex so parallel jobs don't race on Codex cache/state files.
+JOB_HOME_DIR=$JOB_TMPDIR/home-codex
+cp -r "$SOURCE_HOME_DIR" "$JOB_HOME_DIR"
 
 echo "Image:     $IMAGE"
-echo "Home:      $HOME_DIR"
+echo "Home:      $JOB_HOME_DIR"
 echo "Results:   $RESULTS_DIR"
 echo "Question:  $QUESTION_ID"
 
 singularity exec \
-    --nv \
     --cleanenv \
     --containall \
-    --home "$HOME_DIR:/home" \
+    --home "$JOB_HOME_DIR:/home" \
     --bind "$RESULTS_DIR:/results" \
     --bind "$COMPBIO_DIR:/compbio:ro" \
     --bind "$RUNNER_DIR:/app:ro" \
