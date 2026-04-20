@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# Run a single compbiobench question inside the Singularity container.
+# Mirrors euler-vibe's bin/codex-eu pattern.
+#
+# Usage: run-task <question_id> [model] [effort] [timeout_min]
+# Example: run-task bam-infer-read-length-q1
+#          run-task bam-infer-read-length-q1 gpt-5.4 medium 30
+set -euo pipefail
+
+QUESTION_ID=${1:?Usage: run-task <question_id> [model] [effort] [timeout_min]}
+MODEL=${2:-gpt-5.4}
+EFFORT=${3:-medium}
+TIMEOUT_MIN=${4:-30}
+
+SCRIPT_PATH=$(realpath "$0")
+REPO_DIR=$(dirname "$(dirname "$SCRIPT_PATH")")
+
+# Cluster paths — override via env vars if running as a different user or project.
+IMAGE=${COMPBIO_IMAGE:-/cluster/project/beltrao/jbuhmann/agentic_ai/images/compbio-codex.sif}
+COMPBIO_DIR=${COMPBIO_DIR:-/cluster/project/beltrao/jbuhmann/agentic_ai/compbiobench}
+RUNNER_DIR=${RUNNER_DIR:-/cluster/home/buhmanju/src/compbiobench-runner}
+RESULTS_DIR=${RESULTS_DIR:-/cluster/project/beltrao/jbuhmann/agentic_ai/compbiobench/results}
+
+HOME_DIR=$REPO_DIR/home-codex
+JOB_TMPDIR=${TMPDIR:-/tmp}/compbio.$$
+
+# TODO: add trap-based cleanup once we're confident jobs aren't reusing /tmp across retries
+# trap 'rm -rf "$JOB_TMPDIR"' EXIT
+
+mkdir -p "$HOME_DIR" "$RESULTS_DIR" "$JOB_TMPDIR"
+
+echo "Image:     $IMAGE"
+echo "Home:      $HOME_DIR"
+echo "Results:   $RESULTS_DIR"
+echo "Question:  $QUESTION_ID"
+
+singularity exec \
+    --nv \
+    --cleanenv \
+    --containall \
+    --home "$HOME_DIR:/home" \
+    --bind "$RESULTS_DIR:/results" \
+    --bind "$COMPBIO_DIR:/compbio:ro" \
+    --bind "$RUNNER_DIR:/app:ro" \
+    --bind "$REPO_DIR:/repo:ro" \
+    --bind "$JOB_TMPDIR:/tmp" \
+    "$IMAGE" \
+    /repo/bin/inner.sh "$QUESTION_ID" "$MODEL" "$EFFORT" "$TIMEOUT_MIN"
